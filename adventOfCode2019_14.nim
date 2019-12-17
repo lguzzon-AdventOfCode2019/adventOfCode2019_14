@@ -1,6 +1,5 @@
 
 import strutils
-import pegs
 import sequtils
 import tables
 
@@ -86,33 +85,47 @@ var lTable: Table[string, string]
 for lLine in gcLines:
   let lEq = lLine.split(" => ")
   let lVal = lEq[1].split(' ')
-  let lSub = lEq[0].replacef(peg"{\d+(('*'/'/')\d+)*}", "$1/" & lVal[0])
-  echo lSub & " => " & lVal[1]
-  lTable[lVal[1]] = lSub
+  lTable[lVal[1]] = lVal[0] & " => " & lEq[0]
 echo lTable
 
 var lKeys = toSeq(lTable.keys)
-while lTable.len > 1:
+var lToSave = 0
+while lTable.len > lToSave:
   let lKey = lKeys.pop
   if lKey == "FUEL":
-    lKeys.insert(lKey,0)
+    lKeys.insert(lKey, 0)
+    lToSave += 1
   else:
-    var lVal:string
-    if lTable.take(lKey,lVal):
+    var lVal: string
+    if lTable.take(lKey, lVal):
+      echo lKey, " -> ", lVal
+      let lVals = lVal.split(" => ")
+      let lMul = lVals[0].parseBiggestInt
       for lK in lKeys:
         let lV = lTable[lK]
         if lV.contains(lKey):
-          # echo lKey, " -> ", lVal
-          # echo lK, " -->> ", lV
-          var lNewVSeq : seq[string]
-          for ls in lV.split(", "):
+          echo lK, " -->> ", lV
+          var lNewVSeq: seq[string]
+          let lVSplit = lV.split(" => ")
+          for ls in lVSplit[1].split(", "):
             if ls.contains(lKey):
-              let lNewVal = lVal.replacef(peg"{\d+(('*'/'/')\d+)*}", "$1*" & ls.split(" ")[0])
-              lNewVSeq.add(lNewVal)
+              let lsSplit = ls.split(' ')
+              let lsSplitVal = lsSplit[0].parseBiggestInt
+              var newMul = lsSplitVal div lMul
+              if lsSplitVal mod lMul != 0:
+                newMul += 1
+              var lNewVal: seq[string]
+              for lValsItem in lVals[1].split(", "):
+                let lValsItems = lValsItem.split(' ')
+                lNewVal.add($(lValsItems[0].parseBiggestInt * newMul) &
+                            " " &
+                            lValsItems[1])
+              lNewVSeq.add(lNewVal.join(", "))
             else:
               lNewVSeq.add(ls)
-          let lNewV = lNewVSeq.join(", ")
-          # echo lNewV
+          let lNewV = lVSplit[0] & " => " & lNewVSeq.join(", ")
+          echo lK, " -->> ", lNewV
           lTable[lk] = lNewV
 
 echo lTable
+echo lTable["FUEL"].split(", ").foldl(a + (b.split(" ")[0].parseBiggestInt), 0i64)

@@ -29,7 +29,7 @@ const
 165 ORE => 2 GPVTF
 3 DCFZ, 7 NZVS, 5 HKGWZ, 10 PSHF => 8 KHKGT"""
 
-  gcInputTest03 ="""2 VPVL, 7 FWMGM, 2 CXFTF, 11 MNCFX => 1 STKFG
+  gcInputTest03 = """2 VPVL, 7 FWMGM, 2 CXFTF, 11 MNCFX => 1 STKFG
 17 NVRVD, 3 JNWZP => 8 VPVL
 53 STKFG, 6 MNCFX, 46 VJHF, 81 HVMC, 68 CXFTF, 25 GNMV => 1 FUEL
 22 VJHF, 37 MNCFX => 5 FWMGM
@@ -42,7 +42,7 @@ const
 1 VJHF, 6 MNCFX => 4 RFSQX
 176 ORE => 6 VJHF"""
 
-  gcInputTest04="""171 ORE => 8 CNZTR
+  gcInputTest04 = """171 ORE => 8 CNZTR
 7 ZLQW, 3 BMBT, 9 XCVML, 26 XMNCP, 1 WPTQ, 2 MZWV, 1 RJRHP => 4 PLWSL
 114 ORE => 4 BHXH
 14 VRPVC => 6 BMBT
@@ -122,7 +122,9 @@ const
   # gcInput = gcInputTest00 # --> 31
   # gcInput = gcInputTest01 # --> 165
   # gcInput = gcInputTest02 # --> 13312
-  gcInput = gcInputTest03 # --> 13312
+  # gcInput = gcInputTest03 # --> 180697
+  # gcInput = gcInputTest04 # --> 2210736
+  gcInput = gcInputOk
 
   gcLines = gcInput.split('\n')
 
@@ -150,74 +152,34 @@ for lLine in gcLines:
       it.split(" ")[0].parseBiggestInt, it.split(" ")[1])))
 echo lTable
 
-var lKeys = toSeq(lTable.keys)
-var lToSave = 0
-while lTable.len > lToSave:
-  let lKey = lKeys.pop
-  if lKey == "FUEL":
-    lKeys.insert(lKey, 0)
-    lToSave += 1
-  else:
-    var lVal = lTable[lKey]
-    if lVal.v.allIt(it.k == "ORE"):
-      lKeys.insert(lKey, 0)
-      lToSave += 1
-    else:
-      var lVal: Eq
-      if lTable.take(lKey, lVal):
-        echo lKey, " -> ", lVal
-        for lK in lKeys:
-          let lV = lTable[lK].v
-          echo "--> ", lV
-          var lNewT: Table[string, BiggestInt]
-          for v in lV:
-            if v.k == lKey:
-              var newMul = v.m div lVal.m
-              if v.m mod lVal.m != 0:
-                newMul += 1
-              for lTo in lVal.v:
-                let lNewM = newMul * lTo.m
-                if lNewT.hasKeyOrPut(lTo.k, lNewM):
-                  lNewT[lTo.k] += lNewM
-            else:
-              if lNewT.hasKeyOrPut(v.k, v.m):
-                lNewT[v.k] += v.m
-          let lNewV = toSeq(lNewT.pairs).mapIt((it[1], it[0]))
-          echo "<-- ", lNewV
-          lTable[lK].v = lNewV
-
-echo lTable
-
-lKeys = toSeq(lTable.keys)
-lToSave = 0
-while lTable.len > lToSave:
-  let lKey = lKeys.pop
-  if lKey == "FUEL":
-    lKeys.insert(lKey, 0)
-    lToSave += 1
-  else:
-      var lVal: Eq
-      if lTable.take(lKey, lVal):
-        echo lKey, " -> ", lVal
-        for lK in lKeys:
-          let lV = lTable[lK].v
-          echo "--> ", lV
-          var lNewT: Table[string, BiggestInt]
-          for v in lV:
-            if v.k == lKey:
-              var newMul = v.m div lVal.m
-              if v.m mod lVal.m != 0:
-                newMul += 1
-              for lTo in lVal.v:
-                let lNewM = newMul * lTo.m
-                if lNewT.hasKeyOrPut(lTo.k, lNewM):
-                  lNewT[lTo.k] += lNewM
-            else:
-              if lNewT.hasKeyOrPut(v.k, v.m):
-                lNewT[v.k] += v.m
-          let lNewV = toSeq(lNewT.pairs).mapIt((it[1], it[0]))
-          echo "<-- ", lNewV
-          lTable[lK].v = lNewV
+var lKeys = lTable["FUEL"].v.mapIt(it.k).filterIt(it != "ORE").filterIt(not lTable[it].v.anyIt(it.k == "ORE"))
+if lKeys.len == 0:
+  lKeys = lTable["FUEL"].v.mapIt(it.k).filterIt(it != "ORE")
+while lKeys.len > 0:
+  for lKey in lKeys:
+    let lVal = lTable[lKey]
+    echo lKey, " -> ", lVal
+    let lV = lTable["FUEL"].v
+    echo "--> ", lV
+    var lNewT: Table[string, BiggestInt]
+    for v in lV:
+      if v.k == lKey:
+        var newMul = v.m div lVal.m
+        if v.m mod lVal.m != 0:
+          newMul += 1
+        for lTo in lVal.v:
+          let lNewM = newMul * lTo.m
+          if lNewT.hasKeyOrPut(lTo.k, lNewM):
+            lNewT[lTo.k] += lNewM
+      else:
+        if lNewT.hasKeyOrPut(v.k, v.m):
+          lNewT[v.k] += v.m
+    let lNewV = toSeq(lNewT.pairs).mapIt((it[1], it[0]))
+    echo "<-- ", lNewV
+    lTable["FUEL"].v = lNewV
+  lKeys = lTable["FUEL"].v.mapIt(it.k).filterIt(it != "ORE").filterIt(not lTable[it].v.anyIt(it.k == "ORE"))
+  if lKeys.len == 0:
+    lKeys = lTable["FUEL"].v.mapIt(it.k).filterIt(it != "ORE")
 
 echo lTable
 echo lTable["FUEL"].v.foldl(a + b.m, 0i64)

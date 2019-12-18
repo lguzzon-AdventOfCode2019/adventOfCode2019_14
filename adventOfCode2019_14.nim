@@ -1,4 +1,5 @@
 
+import math
 import strutils
 import sequtils
 import tables
@@ -59,6 +60,12 @@ const
 121 ORE => 7 VRPVC
 7 XCVML => 6 RJRHP
 5 BHXH, 4 VRPVC => 5 LTCX"""
+
+  gcInputTest05 = """1 ORE => 2 A
+1 A => 1 B
+7 C => 2 D
+2 B => 1 C
+1 A, 1 B, 1 C, 4 D => 1 FUEL"""
 
   gcInputOk = """2 RWPCH => 9 PVTL
 1 FHFH => 4 BLPJK
@@ -124,62 +131,67 @@ const
   # gcInput = gcInputTest02 # --> 13312
   # gcInput = gcInputTest03 # --> 180697
   # gcInput = gcInputTest04 # --> 2210736
-  gcInput = gcInputOk
+  # gcInput = gcInputOk # --> 440223
+  gcInput = gcInputOk # --> 440223
 
   gcLines = gcInput.split('\n')
 
-
-# if "12" =~ peg"{\d+}":
-#   echo matches[0]
-
-# if "12" =~ peg("{\\d+}"):
-#   echo matches[0]
-
-# let lV = "2/6 SXKT, 1/6 VJNBT, 5/6 VLWQB"
-# let lKey = "VJNBT"
-# if lV =~ peg("{\\d+(('*'/'/')\\d+)*} "):
-#   echo matches
-
-# if "12" =~ peg("{\\d+}"):
-#   echo matches[0]
 type
   Eq = tuple[m: BiggestInt, v: seq[tuple[m: BiggestInt, k: string]]]
-var lTable: Table[string, Eq]
-for lLine in gcLines:
-  let lEq = lLine.split(" => ")
-  let lVal = lEq[1].split(' ')
-  lTable[lVal[1]] = (lVal[0].parseBiggestInt, lEq[0].split(", ").mapIt((
-      it.split(" ")[0].parseBiggestInt, it.split(" ")[1])))
-echo lTable
 
-var lKeys = lTable["FUEL"].v.mapIt(it.k).filterIt(it != "ORE").filterIt(not lTable[it].v.anyIt(it.k == "ORE"))
-if lKeys.len == 0:
-  lKeys = lTable["FUEL"].v.mapIt(it.k).filterIt(it != "ORE")
-while lKeys.len > 0:
-  for lKey in lKeys:
-    let lVal = lTable[lKey]
-    echo lKey, " -> ", lVal
-    let lV = lTable["FUEL"].v
-    echo "--> ", lV
-    var lNewT: Table[string, BiggestInt]
-    for v in lV:
-      if v.k == lKey:
-        var newMul = v.m div lVal.m
-        if v.m mod lVal.m != 0:
-          newMul += 1
-        for lTo in lVal.v:
-          let lNewM = newMul * lTo.m
-          if lNewT.hasKeyOrPut(lTo.k, lNewM):
-            lNewT[lTo.k] += lNewM
-      else:
-        if lNewT.hasKeyOrPut(v.k, v.m):
-          lNewT[v.k] += v.m
-    let lNewV = toSeq(lNewT.pairs).mapIt((it[1], it[0]))
-    echo "<-- ", lNewV
-    lTable["FUEL"].v = lNewV
-  lKeys = lTable["FUEL"].v.mapIt(it.k).filterIt(it != "ORE").filterIt(not lTable[it].v.anyIt(it.k == "ORE"))
-  if lKeys.len == 0:
-    lKeys = lTable["FUEL"].v.mapIt(it.k).filterIt(it != "ORE")
+const gcTable: Table[string, Eq] =
+  block computeTable:
+    var lComputeTable: Table[string, Eq]
+    for lLine in gcLines:
+      let lEq = lLine.split(" => ")
+      let lVal = lEq[1].split(' ')
+      lComputeTable[lVal[1]] = (lVal[0].parseBiggestInt, lEq[0].split(
+          ", ").mapIt((it.split(" ")[0].parseBiggestInt, it.split(" ")[1])))
+    lComputeTable
+var lTable = gcTable
 
 echo lTable
+
+proc computeFuel(aKey = "FUEL", aCollapse = false) =
+  echo "+++++ FUEL ---> ", aKey, "-->", lTable[aKey]
+  var lKeys: seq[string]
+
+  template computeKeys(aKey = "FUEL", aCollapse = false) =
+    block computeKeys:
+      let lAllKeys = lTable[aKey].v.mapIt(it.k).filterIt(it != "ORE")
+      lKeys = lAllKeys.filterIt(not lTable[it].v.anyIt(it.k == "ORE"))
+      if lAllKeys.len != lKeys.len:
+        echo "All KEYs -- ", lAllKeys
+        echo "KEYs     -- ", lKeys
+      if ((lKeys.len == 0) and aCollapse):
+        lKeys = lAllKeys
+
+  var lNewT: Table[string, BiggestInt]
+  computeKeys(aKey, aCollapse)
+  while lKeys.len > 0:
+    for lKey in lKeys:
+      let lVal = lTable[lKey]
+      # echo lKey, " -> ", lVal
+      let lV = lTable[aKey].v
+      # echo "--> ", lV
+      lNewT.clear
+      for v in lV:
+        if v.k == lKey:
+          var newMul = (v.m div lVal.m) + sgn(v.m mod lVal.m)
+          for lTo in lVal.v:
+            let lNewM = newMul * lTo.m
+            if lNewT.hasKeyOrPut(lTo.k, lNewM):
+              lNewT[lTo.k] += lNewM
+        else:
+          if lNewT.hasKeyOrPut(v.k, v.m):
+            lNewT[v.k] += v.m
+      let lNewV = toSeq(lNewT.pairs).mapIt((it[1], it[0]))
+      # echo "<-- ", lNewV
+      lTable[aKey].v = lNewV
+    computeKeys(aKey, aCollapse)
+  echo "+++++ FUEL <--- ", aKey, "-->", lTable[aKey]
+
+
+# computeFuel("FUEL")
+computeFuel("FUEL", true)
 echo lTable["FUEL"].v.foldl(a + b.m, 0i64)
